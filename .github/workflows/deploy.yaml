@@ -1,0 +1,56 @@
+name: Terraform EKS Deployment
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+       
+jobs:
+  deploy:
+    name: Deploy to EKS
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: us-west-2
+
+    - name: Update kube config
+      run: aws eks get-token --cluster-name my-eks-cluster | kubectl apply -f -
+
+    - name: Deploy to EKS
+      run: |
+        kubectl apply -f deployment.yaml
+        kubectl apply -f canary.yaml
+
+    - name: Verify deployment
+      run: |
+        kubectl get pods
+        kubectl get services
+        kubectl get virtualservices
+        kubectl get destinationrules
+      
+  docker-push:
+    name: Push Docker Image to Docker Hub
+    runs-on: ubuntu-latest
+    needs: deploy
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Log in to Docker Hub
+      run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+
+    - name: Build Docker image
+      run: docker build -t your-dockerhub-username/congtaojiang/whoami-nodejs-express:latest .
+
+    - name: Push Docker image
+      run: docker push your-dockerhub-username/congtaojiang/whoami-nodejs-express:latest
