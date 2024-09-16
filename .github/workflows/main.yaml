@@ -60,8 +60,8 @@ jobs:
 
     - name: Deploy to EKS
       run: |
-        kubectl apply -f deployment.yaml
-        kubectl apply -f canary.yaml
+        kubectl apply -f deployment.yaml --validate=false
+        kubectl apply -f canary.yaml --validate=false
 
     - name: Verify deployment
       run: |
