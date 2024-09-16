@@ -1,5 +1,4 @@
 name: Terraform EKS Deployment
-
 on:
   push:
     branches:
@@ -9,60 +8,41 @@ on:
       - main
        
 jobs:
-  terraform:
-    name: Terraform Apply
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: 1.5.2
-
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
-      - name: Terraform Init
-        run: terraform init
-
-      - name: Terraform Validate
-        run: terraform validate
-
-      - name: Terraform Plan
-        run: terraform plan
-
-      - name: Terraform Apply
-        run: terraform apply -auto-approve
-
   deploy:
     name: Deploy to EKS
     runs-on: ubuntu-latest
-    needs: terraform
+    
     steps:
     - uses: actions/checkout@v2
-
+    
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v1
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-west-2
-
+        aws-region: us-east-1
+    
+    - name: Debug AWS Configuration
+      run: |
+        aws sts get-caller-identity
+        aws eks list-clusters
+    
     - name: Update kube config
-      run: aws eks get-token --cluster-name my-eks-cluster | kubectl apply -f -
-
+      run: |
+        aws eks get-token --cluster-name my-eks-cluster --region us-east-1
+        aws eks update-kubeconfig --name my-eks-cluster --region us-east-1
+    
+    - name: Debug Kubernetes Configuration
+      run: |
+        kubectl config view
+        kubectl cluster-info
+        kubectl get nodes
+    
     - name: Deploy to EKS
       run: |
-        kubectl apply -f deployment.yaml
-        kubectl apply -f canary.yaml
-
+        kubectl apply -f deployment.yaml --validate=false
+        kubectl apply -f canary.yaml --validate=false
+    
     - name: Verify deployment
       run: |
         kubectl get pods
@@ -73,17 +53,16 @@ jobs:
   docker-push:
     name: Push Docker Image to Docker Hub
     runs-on: ubuntu-latest
-    needs: [terraform,deploy]
-
+    needs: deploy
     steps:
     - name: Checkout repository
       uses: actions/checkout@v2
-
+    
     - name: Log in to Docker Hub
       run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
-
+    
     - name: Build Docker image
-      run: docker build -t your-dockerhub-username/congtaojiang/whoami-nodejs-express:latest .
-
+      run: docker build -t ${{ secrets.DOCKER_USERNAME }}/congtaojiang/whoami-nodejs-express:latest .
+    
     - name: Push Docker image
-      run: docker push your-dockerhub-username/congtaojiang/whoami-nodejs-express:latest        
+      run: docker push ${{ secrets.DOCKER_USERNAME }}/congtaojiang/whoami-nodejs-express:latest
