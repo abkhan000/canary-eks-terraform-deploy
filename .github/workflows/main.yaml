@@ -9,7 +9,7 @@ on:
       - main
        
 jobs:
-  
+
 
   deploy:
     name: Deploy to EKS
