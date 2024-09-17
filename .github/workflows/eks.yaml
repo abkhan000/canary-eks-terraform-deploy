@@ -7,7 +7,7 @@ on:
   pull_request:
     branches:
       - main
-       
+     
 jobs:
   terraform:
     name: Terraform Apply
