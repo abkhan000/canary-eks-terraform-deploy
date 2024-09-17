@@ -91,14 +91,13 @@ resource "aws_kms_key" "eks_logging" {
     ]
   })
 }
-
 module "eks" {
   source          = "terraform-aws-modules/eks/aws"
-  version         = "18.30.0"
+  version         = "20.24.0"
   cluster_name    = local.cluster_name
   cluster_version = "1.27"
   vpc_id          = module.vpc.vpc_id
-  subnet_ids      = module.vpc.private_subnets  # Fixed: changed vpc_subnets to subnet_ids
+  subnet_ids      = module.vpc.private_subnets
 
   eks_managed_node_groups = {
     first = {
@@ -108,8 +107,41 @@ module "eks" {
       instance_type    = "t2.micro"
     }
   }
-
-  # Enable CloudWatch logging for specific types
-  cluster_enabled_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
 }
 
+output "vpc_id" {
+  value = module.vpc.vpc_id
+}
+
+output "private_subnets" {
+  value = module.vpc.private_subnets
+}
+
+output "public_subnets" {
+  value = module.vpc.public_subnets
+}
+
+output "eks_cluster_id" {
+  description = "The name/id of the EKS cluster"
+  value       = module.eks.cluster_id
+}
+
+output "eks_cluster_arn" {
+  description = "The Amazon Resource Name (ARN) of the cluster"
+  value       = module.eks.cluster_arn
+}
+
+output "eks_cluster_endpoint" {
+  description = "Endpoint for your Kubernetes API server"
+  value       = module.eks.cluster_endpoint
+}
+
+output "eks_cluster_certificate_authority_data" {
+  description = "Base64 encoded certificate data required to communicate with the cluster"
+  value       = module.eks.cluster_certificate_authority_data
+}
+
+output "eks_cluster_version" {
+  description = "The Kubernetes version for the cluster"
+  value       = module.eks.cluster_version
+}
