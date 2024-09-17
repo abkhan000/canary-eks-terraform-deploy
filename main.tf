@@ -16,7 +16,7 @@ provider "aws" {
 }
 
 data "aws_eks_cluster" "my_cluster" {
-  name = "my-eks-cluster"
+  name = local.cluster_name
 }
 
 data "aws_eks_cluster_auth" "my_cluster" {
@@ -34,7 +34,6 @@ data "aws_availability_zones" "available" {
 }
 
 locals {
-  region             = "ap-south-1"
   cluster_name       = "K8S-cluster"
   availability_zones = slice(data.aws_availability_zones.available.names, 0, 3)
 }
@@ -50,12 +49,10 @@ module "vpc" {
   enable_nat_gateway   = true
   single_nat_gateway   = true
   enable_dns_hostnames = true
-
   private_subnet_tags = {
     "kubernetes.io/cluster/${local.cluster_name}" = "shared"
     "kubernetes.io/role/internal-elb"            = "1"
   }
-
   public_subnet_tags = {
     "kubernetes.io/cluster/${local.cluster_name}" = "shared"
     "kubernetes.io/role/elb"                     = "1"
@@ -80,12 +77,26 @@ module "eks" {
   }
 }
 
-output "eks_cluster_id" {
-  description = "EKS cluster ID"
-  value       = module.eks.cluster_id
+output "vpc_id" {
+  value = module.vpc.vpc_id
+}
+
+output "private_subnets" {
+  value = module.vpc.private_subnets
+}
+
+output "public_subnets" {
+  value = module.vpc.public_subnets
+}
+
+output "eks_cluster_name" {
+  value = module.eks.cluster_id  # Changed from cluster_name to cluster_id
 }
 
 output "eks_cluster_endpoint" {
-  description = "EKS cluster endpoint"
-  value       = module.eks.cluster_endpoint
+  value = module.eks.cluster_endpoint  # Changed from data.aws_eks_cluster.my_cluster.endpoint
+}
+
+output "eks_cluster_version" {
+  value = module.eks.cluster_version
 }
