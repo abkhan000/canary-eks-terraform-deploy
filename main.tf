@@ -141,7 +141,12 @@ output "eks_cluster_certificate_authority_data" {
   value       = module.eks.cluster_certificate_authority_data
 }
 
-output "eks_cluster_version" {
-  description = "The Kubernetes version for the cluster"
-  value       = module.eks.cluster_version
+output "eks_cluster_id" {
+  description = "EKS cluster ID"
+  value       = module.eks.cluster_id
+}
+
+output "eks_cluster_endpoint" {
+  description = "EKS cluster endpoint"
+  value       = module.eks.cluster_endpoint
 }
