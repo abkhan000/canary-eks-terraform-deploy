@@ -12,34 +12,36 @@ terraform {
 }
 
 provider "aws" {
-  region     = "ap-south-1"
+  region = "ap-south-1"  # AWS region is already defined here
 }
 
+# Fetch details of the EKS cluster
 data "aws_eks_cluster" "my_cluster" {
-  name = "my-eks-cluster"
+  name = local.cluster_name
 }
 
 data "aws_eks_cluster_auth" "my_cluster" {
   name = data.aws_eks_cluster.my_cluster.name
 }
 
+# Kubernetes provider configuration
 provider "kubernetes" {
   host                   = data.aws_eks_cluster.my_cluster.endpoint
   cluster_ca_certificate = base64decode(data.aws_eks_cluster.my_cluster.certificate_authority.0.data)
   token                  = data.aws_eks_cluster_auth.my_cluster.token
-  # Removed the load_config_file argument
 }
 
+# Get available AWS Availability Zones
 data "aws_availability_zones" "available" {
   state = "available"
 }
 
 locals {
-  region             = "ap-south-1"
   cluster_name       = "K8S-cluster"
-  availability_zones = slice(data.aws_availability_zones.available.names, 0, 3)
+  availability_zones = slice(data.aws_availability_zones.available.names, 0, 3)  # Take first 3 AZs
 }
 
+# VPC module configuration
 module "vpc" {
   source               = "terraform-aws-modules/vpc/aws"
   version              = "2.58.0"
@@ -63,14 +65,16 @@ module "vpc" {
   }
 }
 
+# EKS module configuration
 module "eks" {
   source          = "terraform-aws-modules/eks/aws"
   version         = "18.30.0"
   cluster_name    = local.cluster_name
   cluster_version = "1.27"
   vpc_id          = module.vpc.vpc_id
-  subnet_ids      = module.vpc.private_subnets  # Fixed: changed vpc_subnets to subnet_ids
+  subnet_ids      = module.vpc.private_subnets  # Reference the private subnets from the VPC module
 
+  # Define EKS managed node groups
   eks_managed_node_groups = {
     first = {
       desired_capacity = 1
@@ -79,3 +83,29 @@ module "eks" {
       instance_type    = "t2.micro"
     }
   }
+}
+
+# Optional: Output resources for debugging or future use
+output "vpc_id" {
+  value = module.vpc.vpc_id
+}
+
+output "private_subnets" {
+  value = module.vpc.private_subnets
+}
+
+output "public_subnets" {
+  value = module.vpc.public_subnets
+}
+
+output "eks_cluster_name" {
+  value = module.eks.cluster_name
+}
+
+output "eks_cluster_endpoint" {
+  value = data.aws_eks_cluster.my_cluster.endpoint
+}
+
+output "eks_cluster_version" {
+  value = module.eks.cluster_version
+}
