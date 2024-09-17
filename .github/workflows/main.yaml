@@ -1,4 +1,4 @@
-name: Terraform EKS Deployment
+name: EKS Deployment
 on:
   push:
     branches:
