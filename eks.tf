@@ -15,28 +15,13 @@ provider "aws" {
   region     = "ap-south-1"
 }
 
-data "aws_eks_cluster" "my_cluster" {
-  name = "my-eks-cluster"
-}
-
-data "aws_eks_cluster_auth" "my_cluster" {
-  name = data.aws_eks_cluster.my_cluster.name
-}
-
-provider "kubernetes" {
-  host                   = data.aws_eks_cluster.my_cluster.endpoint
-  cluster_ca_certificate = base64decode(data.aws_eks_cluster.my_cluster.certificate_authority.0.data)
-  token                  = data.aws_eks_cluster_auth.my_cluster.token
-  # Removed the load_config_file argument
-}
-
 data "aws_availability_zones" "available" {
   state = "available"
 }
 
 locals {
   region             = "ap-south-1"
-  cluster_name       = "K8s-cluster"
+  cluster_name       = "K8S-cluster"
   availability_zones = slice(data.aws_availability_zones.available.names, 0, 3)
 }
 
@@ -51,49 +36,19 @@ module "vpc" {
   enable_nat_gateway   = true
   single_nat_gateway   = true
   enable_dns_hostnames = true
-
   private_subnet_tags = {
     "kubernetes.io/cluster/${local.cluster_name}" = "shared"
-    "kubernetes.io/role/internal-elb"            = "1"
+    "kubernetes.io/role/internal-elb"             = "1"
   }
-
   public_subnet_tags = {
     "kubernetes.io/cluster/${local.cluster_name}" = "shared"
-    "kubernetes.io/role/elb"                     = "1"
+    "kubernetes.io/role/elb"                      = "1"
   }
 }
 
-resource "aws_cloudwatch_log_group" "eks_cluster" {
-  name              = "/aws/eks/${local.cluster_name}/cluster"
-  retention_in_days = 7
-}
-
-resource "aws_kms_key" "eks_logging" {
-  description = "KMS key for EKS cluster logging"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Service = "logs.ap-south-1.amazonaws.com"
-        }
-        Action = [
-          "kms:Encrypt*",
-          "kms:Decrypt*",
-          "kms:ReEncrypt*",
-          "kms:GenerateDataKey*",
-          "kms:Describe*"
-        ]
-        Resource = "*"
-      },
-    ]
-  })
-}
 module "eks" {
   source          = "terraform-aws-modules/eks/aws"
-  version         = "20.24.0"
+  version         = "18.30.0"
   cluster_name    = local.cluster_name
   cluster_version = "1.27"
   vpc_id          = module.vpc.vpc_id
@@ -109,36 +64,19 @@ module "eks" {
   }
 }
 
-output "vpc_id" {
-  value = module.vpc.vpc_id
-}
-
-output "private_subnets" {
-  value = module.vpc.private_subnets
-}
-
-output "public_subnets" {
-  value = module.vpc.public_subnets
-}
-
-output "eks_cluster_id" {
-  description = "The name/id of the EKS cluster"
-  value       = module.eks.cluster_id
-}
-
-output "eks_cluster_arn" {
-  description = "The Amazon Resource Name (ARN) of the cluster"
-  value       = module.eks.cluster_arn
-}
-
-output "eks_cluster_endpoint" {
-  description = "Endpoint for your Kubernetes API server"
-  value       = module.eks.cluster_endpoint
-}
-
-output "eks_cluster_certificate_authority_data" {
-  description = "Base64 encoded certificate data required to communicate with the cluster"
-  value       = module.eks.cluster_certificate_authority_data
+provider "kubernetes" {
+  host                   = module.eks.cluster_endpoint
+  cluster_ca_certificate = base64decode(module.eks.cluster_certificate_authority_data)
+  exec {
+    api_version = "client.authentication.k8s.io/v1beta1"
+    command     = "aws"
+    args = [
+      "eks",
+      "get-token",
+      "--cluster-name",
+      module.eks.cluster_id
+    ]
+  }
 }
 
 output "eks_cluster_id" {
@@ -149,4 +87,19 @@ output "eks_cluster_id" {
 output "eks_cluster_endpoint" {
   description = "EKS cluster endpoint"
   value       = module.eks.cluster_endpoint
+}
+
+output "vpc_id" {
+  description = "VPC ID"
+  value       = module.vpc.vpc_id
+}
+
+output "private_subnets" {
+  description = "Private subnets"
+  value       = module.vpc.private_subnets
+}
+
+output "public_subnets" {
+  description = "Public subnets"
+  value       = module.vpc.public_subnets
 }
