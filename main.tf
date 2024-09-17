@@ -12,11 +12,11 @@ terraform {
 }
 
 provider "aws" {
-  region = "ap-south-1"
+  region     = "ap-south-1"
 }
 
 data "aws_eks_cluster" "my_cluster" {
-  name = local.cluster_name
+  name = "my-eks-cluster"
 }
 
 data "aws_eks_cluster_auth" "my_cluster" {
@@ -27,6 +27,7 @@ provider "kubernetes" {
   host                   = data.aws_eks_cluster.my_cluster.endpoint
   cluster_ca_certificate = base64decode(data.aws_eks_cluster.my_cluster.certificate_authority.0.data)
   token                  = data.aws_eks_cluster_auth.my_cluster.token
+  # Removed the load_config_file argument
 }
 
 data "aws_availability_zones" "available" {
@@ -34,7 +35,8 @@ data "aws_availability_zones" "available" {
 }
 
 locals {
-  cluster_name       = "K8S-cluster"
+  region             = "ap-south-1"
+  cluster_name       = "K8s-cluster"
   availability_zones = slice(data.aws_availability_zones.available.names, 0, 3)
 }
 
@@ -49,14 +51,45 @@ module "vpc" {
   enable_nat_gateway   = true
   single_nat_gateway   = true
   enable_dns_hostnames = true
+
   private_subnet_tags = {
     "kubernetes.io/cluster/${local.cluster_name}" = "shared"
     "kubernetes.io/role/internal-elb"            = "1"
   }
+
   public_subnet_tags = {
     "kubernetes.io/cluster/${local.cluster_name}" = "shared"
     "kubernetes.io/role/elb"                     = "1"
   }
+}
+
+resource "aws_cloudwatch_log_group" "eks_cluster" {
+  name              = "/aws/eks/${local.cluster_name}/cluster"
+  retention_in_days = 7
+}
+
+resource "aws_kms_key" "eks_logging" {
+  description = "KMS key for EKS cluster logging"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "logs.ap-south-1.amazonaws.com"
+        }
+        Action = [
+          "kms:Encrypt*",
+          "kms:Decrypt*",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:Describe*"
+        ]
+        Resource = "*"
+      },
+    ]
+  })
 }
 
 module "eks" {
@@ -65,7 +98,7 @@ module "eks" {
   cluster_name    = local.cluster_name
   cluster_version = "1.27"
   vpc_id          = module.vpc.vpc_id
-  subnet_ids      = module.vpc.private_subnets
+  subnet_ids      = module.vpc.private_subnets  # Fixed: changed vpc_subnets to subnet_ids
 
   eks_managed_node_groups = {
     first = {
@@ -75,28 +108,8 @@ module "eks" {
       instance_type    = "t2.micro"
     }
   }
+
+  # Enable CloudWatch logging for specific types
+  cluster_enabled_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
 }
 
-output "vpc_id" {
-  value = module.vpc.vpc_id
-}
-
-output "private_subnets" {
-  value = module.vpc.private_subnets
-}
-
-output "public_subnets" {
-  value = module.vpc.public_subnets
-}
-
-output "eks_cluster_name" {
-  value = module.eks.cluster_id  # Changed from cluster_name to cluster_id
-}
-
-output "eks_cluster_endpoint" {
-  value = module.eks.cluster_endpoint  # Changed from data.aws_eks_cluster.my_cluster.endpoint
-}
-
-output "eks_cluster_version" {
-  value = module.eks.cluster_version
-}
