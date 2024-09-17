@@ -1,44 +1,11 @@
-name: EKS Deployment
+name: Docker Push
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
-       
+  workflow_run:
+    workflows: ["EKS Deployment"]
+    types:
+      - completed
+
 jobs:
-  deploy:
-    name: Deploy to EKS
-    runs-on: ubuntu-latest
-    
-    steps:
-    - uses: actions/checkout@v2
-    
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: us-east-1
-    
-    - name: Update kube config
-      run: |
-        aws eks get-token --cluster-name my-eks-cluster --region us-east-1
-        aws eks update-kubeconfig --name my-eks-cluster --region us-east-1
-    
-    - name: Deploy to EKS
-      run: |
-        kubectl apply -f deployment.yaml
-        kubectl apply -f canary.yaml
-    
-    - name: Verify deployment
-      run: |
-        kubectl get pods
-        kubectl get services
-        kubectl get virtualservices
-        kubectl get destinationrules
-      
   docker-push:
     name: Push Docker Image to Docker Hub
     runs-on: ubuntu-latest
